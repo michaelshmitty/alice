@@ -1,0 +1,11 @@
+[package]
+name = "alice"
+version = "0.1.0"
+authors = ["Michael Smith <m@michaelsmith.be>"]
+
+[dependencies.sdl2]
+version = "*"
+features = ["image"]
+
+[dependencies]
+rand = "*"
