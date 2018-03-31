@@ -110,6 +110,9 @@ fn main() {
                     println!("Joystick {} disconnected.", which);
                     _joystick = None;
                 },
+                Event::JoyButtonDown{ button_idx, ..} => {
+                    println!("Button down {:?}", button_idx);
+                },
                 Event::JoyAxisMotion{ axis_idx, value: val, .. } => {
                     let dead_zone = 500;
 
