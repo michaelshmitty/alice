@@ -45,10 +45,10 @@ fn main() {
                           .version("1.0")
                           .author("Michael Smith <m@michaelsmith.be>")
                           .arg(Arg::with_name("WIDTH")
-                               .help("Sets the horizontal resolution.")
+                               .help("Specify the horizontal resolution.")
                                .index(1))
                           .arg(Arg::with_name("HEIGHT")
-                               .help("Sets the vertical resolution.")
+                               .help("Specify the vertical resolution.")
                                .index(2))
                           .arg(Arg::with_name("f")
                                .short("f")
@@ -160,7 +160,7 @@ fn main() {
 
     // Variables for calculating framerate
     let mut last_frame_end_time = Instant::now();
-    let mut current_fps = 0;
+    let mut _current_fps = 0;
     let mut frames_elapsed = 0;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -298,7 +298,7 @@ fn main() {
         let frame_end_time = Instant::now();
         if (frame_end_time - last_frame_end_time) >= Duration::new(1, 0) {
             last_frame_end_time = frame_end_time;
-            current_fps = frames_elapsed;
+            _current_fps = frames_elapsed;
             frames_elapsed = 0;
         }
         frames_elapsed = frames_elapsed + 1;
