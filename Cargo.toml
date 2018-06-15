@@ -9,3 +9,5 @@ features = ["image"]
 
 [dependencies]
 rand = "*"
+docopt = "1.0.0"
+serde_derive = "1.0.66"
