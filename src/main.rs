@@ -8,6 +8,8 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use sdl2::rect::Point;
+use std::time::{Duration, Instant};
+use std::thread;
 
 use rand::Rng;
 
@@ -34,6 +36,10 @@ const FACING_WEST: u32 = 1;
 const FACING_SOUTH: u32 = 2;
 const FACING_EAST: u32 = 3;
 
+const TARGET_FRAME_RATE: u64 = 60;
+const BILLION: u64 = 1_000_000_000;
+const FRAME_TIME_NS: u64 = BILLION / TARGET_FRAME_RATE;
+
 fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -51,7 +57,6 @@ fn main() {
 
     let mut canvas = window.into_canvas()
                            .accelerated()
-                           .present_vsync()
                            .build()
                            .unwrap();
     let texture_creator = canvas.texture_creator();
@@ -59,8 +64,6 @@ fn main() {
     canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 200));
 
     let mut timer = sdl_context.timer().unwrap();
-
-    let mut event_pump = sdl_context.event_pump().unwrap();
 
     // Load textures
     let player_texture = texture_creator.load_texture(Path::new("assets/bunny.png")).unwrap();
@@ -89,8 +92,17 @@ fn main() {
 
     let carrot_rect = Rect::from_center(Point::new(carrot_x, carrot_y), 64, 64);
 
-    let mut running = true;
-    while running {
+    // Variables for calculating framerate
+    let mut last_frame_end_time = Instant::now();
+    let mut current_fps = 0;
+    let mut frames_elapsed = 0;
+    let mut last_timestamp = Instant::now();
+
+
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    'running: loop {
+        let start_time = Instant::now();
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::JoyDeviceAdded{ which, .. } =>
@@ -164,9 +176,9 @@ fn main() {
                     }
                 },
 
-                Event::Quit {..} | Event::KeyDown {keycode: Some(Keycode::Escape), ..} => {
-                    running = false;
-                },
+                Event::Quit {..} | Event::KeyDown {
+                    keycode: Some(Keycode::Escape), ..
+                } => break 'running,
                 _ => { }
             }
         }
@@ -225,5 +237,24 @@ fn main() {
         canvas.copy(&player_texture, Some(source_rect), Some(dest_rect)).unwrap();
 
         canvas.present();
+
+        // Calculate framerate.
+        // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero implementation.
+        let frame_end_time = Instant::now();
+        if (frame_end_time - last_frame_end_time) >= Duration::new(1, 0) {
+            last_frame_end_time = frame_end_time;
+            current_fps = frames_elapsed;
+            frames_elapsed = 0;
+        }
+        frames_elapsed = frames_elapsed + 1;
+
+        // Cap framerate.
+        let end_time = Instant::now();
+        let time_elapsed = end_time - start_time;
+        let time_elapsed: u64 = time_elapsed.as_secs() * BILLION + time_elapsed.subsec_nanos() as u64;
+        if time_elapsed < FRAME_TIME_NS {
+            thread::sleep(Duration::new(0, (FRAME_TIME_NS - time_elapsed) as u32));
+        }
+        println!("FPS: : {:?}", current_fps);
     }
 }
