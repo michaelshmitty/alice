@@ -1,7 +1,9 @@
 extern crate rand;
 extern crate sdl2;
+extern crate clap;
 
 use std::path::Path;
+use std::process;
 
 use sdl2::event::Event;
 use sdl2::image::{LoadTexture, INIT_PNG};
@@ -10,13 +12,9 @@ use sdl2::rect::Point;
 use sdl2::rect::Rect;
 use std::thread;
 use std::time::{Duration, Instant};
+use clap::{Arg, App};
 
 use rand::Rng;
-
-const WIDTH: u32 = 960;
-const HEIGHT: u32 = 540;
-// const WIDTH: u32 = 1920;
-// const HEIGHT: u32 = 1080;
 
 const SPRITE_SIZE: u32 = 38;
 const SPRITE_ZOOM: u32 = 4;
@@ -27,7 +25,7 @@ const SPRITE_WEST_OFFSET: i32 = 1 * SPRITE_SIZE as i32;
 const SPRITE_SOUTH_OFFSET: i32 = 2 * SPRITE_SIZE as i32;
 const SPRITE_EAST_OFFSET: i32 = 3 * SPRITE_SIZE as i32;
 
-const MOVEMENT_SPEED: f32 = 150.0;
+const MOVEMENT_SPEED: f32 = 300.0;
 const ANIMATION_SPEED: i32 = 100;
 const FRAMES_PER_ANIM: i32 = 4;
 
@@ -36,21 +34,80 @@ const FACING_WEST: u32 = 1;
 const FACING_SOUTH: u32 = 2;
 const FACING_EAST: u32 = 3;
 
+// FPS and frame capping constants
 const TARGET_FRAME_RATE: u64 = 60;
 const BILLION: u64 = 1_000_000_000;
 const FRAME_TIME_NS: u64 = BILLION / TARGET_FRAME_RATE;
 
 fn main() {
+    // Parse command line options for width, height and fullscreen toggle.
+    let matches = App::new("A.L.I.C.E.")
+                          .version("1.0")
+                          .author("Michael Smith <m@michaelsmith.be>")
+                          .arg(Arg::with_name("WIDTH")
+                               .help("Sets the horizontal resolution.")
+                               .index(1))
+                          .arg(Arg::with_name("HEIGHT")
+                               .help("Sets the vertical resolution.")
+                               .index(2))
+                          .arg(Arg::with_name("f")
+                               .short("f")
+                               .help("Run in fullscreen."))
+                          .get_matches();
+
+    let window_fullscreen = matches.is_present("f");
+
+    let window_width = if window_fullscreen {
+        match matches.value_of("WIDTH")
+                     .unwrap_or("1920")
+                     .parse::<u32>() {
+                        Ok(n) => n,
+                        Err(_e) => 1920,
+                     }
+    } else {
+        match matches.value_of("WIDTH")
+                     .unwrap_or("960")
+                     .parse::<u32>() {
+                        Ok(n) => n,
+                        Err(_e) => 960,
+                     }
+
+    };
+
+    let window_height = if window_fullscreen {
+        match matches.value_of("HEIGHT")
+                     .unwrap_or("1080")
+                     .parse::<u32>() {
+                        Ok(n) => n,
+                        Err(_e) => 1080,
+                     }
+    } else {
+        match matches.value_of("HEIGHT")
+                     .unwrap_or("540")
+                     .parse::<u32>() {
+                        Ok(n) => n,
+                        Err(_e) => 540,
+                     }
+
+    };
+
+    // Initialize SDL
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let _image_context = sdl2::image::init(INIT_PNG).unwrap();
     let joystick_subsystem = sdl_context.joystick().unwrap();
     let mut _joystick = None;
 
-    let window = video_subsystem.window("A.L.I.C.E.", WIDTH, HEIGHT)
-        // .fullscreen()
-        .build()
-        .unwrap();
+    let window = if window_fullscreen {
+        video_subsystem.window("A.L.I.C.E.", window_width, window_height)
+                       .fullscreen()
+                       .build()
+                       .unwrap()
+    } else {
+        video_subsystem.window("A.L.I.C.E.", window_width, window_height)
+                       .build()
+                       .unwrap()
+    };
 
     // Hide the cursor
     sdl_context.mouse().show_cursor(false);
@@ -74,8 +131,8 @@ fn main() {
         .load_texture(Path::new("assets/carrot.png"))
         .unwrap();
 
-    let mut player_x: f32 = WIDTH as f32 / 2.0;
-    let mut player_y: f32 = HEIGHT as f32 / 2.0;
+    let mut player_x: f32 = window_width as f32 / 2.0;
+    let mut player_y: f32 = window_height as f32 / 2.0;
 
     let mut d_player_x = 0.0;
     let mut d_player_y = 0.0;
@@ -94,8 +151,10 @@ fn main() {
     );
 
     // Generate a random carrot
-    let carrot_x: i32 = rand::thread_rng().gen_range(64, WIDTH as i32 - 64);
-    let carrot_y: i32 = rand::thread_rng().gen_range(64, HEIGHT as i32 - 64);
+    let carrot_x: i32 = rand::thread_rng().gen_range(64,
+                                                     window_width as i32 - 64);
+    let carrot_y: i32 = rand::thread_rng().gen_range(64,
+                                                     window_height as i32 - 64);
 
     let carrot_rect = Rect::from_center(Point::new(carrot_x, carrot_y), 64, 64);
 
@@ -188,7 +247,7 @@ fn main() {
 
         let new_player_x = player_x + (dt_for_frame * d_player_x);
 
-        if new_player_x >= 32.0 && new_player_x <= WIDTH as f32 - 32.0 {
+        if new_player_x >= 32.0 && new_player_x <= window_width as f32 - 32.0 {
             player_x = new_player_x;
         } else {
             d_player_x = 0.0;
@@ -196,7 +255,7 @@ fn main() {
         }
 
         let new_player_y = player_y + (dt_for_frame * d_player_y);
-        if new_player_y >= 42.0 && new_player_y <= HEIGHT as f32 - 42.0 {
+        if new_player_y >= 42.0 && new_player_y <= window_height as f32 - 42.0 {
             player_y = new_player_y;
         } else {
             d_player_y = 0.0;
