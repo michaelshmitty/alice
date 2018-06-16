@@ -2,12 +2,16 @@ extern crate rand;
 extern crate sdl2;
 extern crate clap;
 
+use std::thread;
+use std::time::{Duration, Instant};
+use std::mem;
+
 use sdl2::event::Event;
 use sdl2::render::TextureAccess;
 use sdl2::keyboard::Keycode;
-use std::thread;
-use std::time::{Duration, Instant};
+
 use clap::{Arg, App};
+
 
 
 // FPS and frame capping constants
@@ -87,18 +91,24 @@ fn main() {
     // Hide the cursor
     sdl_context.mouse().show_cursor(false);
 
-    let mut canvas = window.into_canvas().accelerated().build().unwrap();
+    let mut canvas = window.into_canvas()
+                            .present_vsync()
+                            .accelerated()
+                            .build()
+                            .unwrap();
     let texture_creator = canvas.texture_creator();
 
     canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 200));
 
-    let mut timer = sdl_context.timer().unwrap();
-
-    // Load textures
     let mut texture = texture_creator.create_texture(None,
                                                      TextureAccess::Streaming,
                                                      window_width,
                                                      window_height).unwrap();
+
+    let mut buffer: Vec<u32> =
+        vec![0; window_width as usize * window_height as usize];
+    let mut x_offset = 0u32;
+    let mut y_offset = 0u32;
 
     // Variables for calculating framerate
     let mut last_frame_end_time = Instant::now();
@@ -178,10 +188,28 @@ fn main() {
 
         canvas.clear();
 
+        let mut pixel = 0;
+        for y in 0..window_height {
+            for x in 0..window_width {
+                let green = (x + x_offset) as u8;
+                let blue = (y + y_offset) as u8;
+
+                buffer[pixel] = ((green as u32) << 8) | (blue as u32);
+                pixel += 1;
+            }
+        }
+
+        let _ = texture.update(None,
+                               unsafe { mem::transmute(&*buffer) },
+                               window_width as usize * 4);
+
         // Copy the texture to the canvas
         canvas.copy(&texture, None, None).unwrap();
 
         canvas.present();
+
+        x_offset += 1;
+        y_offset += 2;
 
         // Calculate framerate.
         // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero
