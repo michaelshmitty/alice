@@ -1,0 +1,7 @@
+{
+    "editor.wordWrapColumn": 99,
+    "editor.rulers": [
+        99
+    ],
+    "rust-client.channel": "nightly",
+}

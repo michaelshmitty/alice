@@ -1,94 +1,73 @@
+extern crate clap;
 extern crate rand;
 extern crate sdl2;
-extern crate clap;
 
 use std::path::Path;
-use std::process;
 
 use sdl2::event::Event;
 use sdl2::image::{LoadTexture, INIT_PNG};
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Point;
 use sdl2::rect::Rect;
+use sdl2::render::Texture;
+
 use std::thread;
 use std::time::{Duration, Instant};
-use clap::{Arg, App};
 
-use rand::Rng;
-
-const SPRITE_SIZE: u32 = 38;
-const SPRITE_ZOOM: u32 = 4;
-const SPRITE_REST_OFFSET: i32 = 4 * SPRITE_SIZE as i32;
-
-const SPRITE_NORTH_OFFSET: i32 = 0;
-const SPRITE_WEST_OFFSET: i32 = 1 * SPRITE_SIZE as i32;
-const SPRITE_SOUTH_OFFSET: i32 = 2 * SPRITE_SIZE as i32;
-const SPRITE_EAST_OFFSET: i32 = 3 * SPRITE_SIZE as i32;
-
-const MOVEMENT_SPEED: f32 = 300.0;
-const ANIMATION_SPEED: i32 = 100;
-const FRAMES_PER_ANIM: i32 = 4;
-
-const FACING_NORTH: u32 = 0;
-const FACING_WEST: u32 = 1;
-const FACING_SOUTH: u32 = 2;
-const FACING_EAST: u32 = 3;
+use clap::{App, Arg};
 
 // FPS and frame capping constants
 const TARGET_FRAME_RATE: u64 = 60;
 const BILLION: u64 = 1_000_000_000;
 const FRAME_TIME_NS: u64 = BILLION / TARGET_FRAME_RATE;
 
+struct Widget<'a> {
+    texture: Texture<'a>,
+    position: Rect,
+}
+
 fn main() {
     // Parse command line options for width, height and fullscreen toggle.
     let matches = App::new("A.L.I.C.E.")
-                          .version("1.0")
-                          .author("Michael Smith <m@michaelsmith.be>")
-                          .arg(Arg::with_name("WIDTH")
-                               .help("Specify the horizontal resolution.")
-                               .index(1))
-                          .arg(Arg::with_name("HEIGHT")
-                               .help("Specify the vertical resolution.")
-                               .index(2))
-                          .arg(Arg::with_name("f")
-                               .short("f")
-                               .help("Run in fullscreen."))
-                          .get_matches();
+        .version("1.0")
+        .author("Michael Smith <m@michaelsmith.be>")
+        .arg(
+            Arg::with_name("WIDTH")
+                .help("Specify the horizontal resolution.")
+                .index(1),
+        )
+        .arg(
+            Arg::with_name("HEIGHT")
+                .help("Specify the vertical resolution.")
+                .index(2),
+        )
+        .arg(Arg::with_name("f").short("f").help("Run in fullscreen."))
+        .get_matches();
 
     let window_fullscreen = matches.is_present("f");
 
     let window_width = if window_fullscreen {
-        match matches.value_of("WIDTH")
-                     .unwrap_or("1920")
-                     .parse::<u32>() {
-                        Ok(n) => n,
-                        Err(_e) => 1920,
-                     }
+        match matches.value_of("WIDTH").unwrap_or("1920").parse::<u32>() {
+            Ok(n) => n,
+            Err(_e) => 1920,
+        }
     } else {
-        match matches.value_of("WIDTH")
-                     .unwrap_or("960")
-                     .parse::<u32>() {
-                        Ok(n) => n,
-                        Err(_e) => 960,
-                     }
-
+        match matches.value_of("WIDTH").unwrap_or("960").parse::<u32>() {
+            Ok(n) => n,
+            Err(_e) => 960,
+        }
     };
 
     let window_height = if window_fullscreen {
-        match matches.value_of("HEIGHT")
-                     .unwrap_or("1080")
-                     .parse::<u32>() {
-                        Ok(n) => n,
-                        Err(_e) => 1080,
-                     }
+        match matches.value_of("HEIGHT").unwrap_or("1080").parse::<u32>() {
+            Ok(n) => n,
+            Err(_e) => 1080,
+        }
     } else {
-        match matches.value_of("HEIGHT")
-                     .unwrap_or("540")
-                     .parse::<u32>() {
-                        Ok(n) => n,
-                        Err(_e) => 540,
-                     }
-
+        match matches.value_of("HEIGHT").unwrap_or("540").parse::<u32>() {
+            Ok(n) => n,
+            Err(_e) => 540,
+        }
     };
 
     // Initialize SDL
@@ -99,14 +78,16 @@ fn main() {
     let mut _joystick = None;
 
     let window = if window_fullscreen {
-        video_subsystem.window("A.L.I.C.E.", window_width, window_height)
-                       .fullscreen()
-                       .build()
-                       .unwrap()
+        video_subsystem
+            .window("A.L.I.C.E.", window_width, window_height)
+            .fullscreen()
+            .build()
+            .unwrap()
     } else {
-        video_subsystem.window("A.L.I.C.E.", window_width, window_height)
-                       .build()
-                       .unwrap()
+        video_subsystem
+            .window("A.L.I.C.E.", window_width, window_height)
+            .build()
+            .unwrap()
     };
 
     // Hide the cursor
@@ -115,48 +96,38 @@ fn main() {
     let mut canvas = window.into_canvas().accelerated().build().unwrap();
     let texture_creator = canvas.texture_creator();
 
-    canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 200));
-
-    let mut timer = sdl_context.timer().unwrap();
+    canvas.set_draw_color(sdl2::pixels::Color::RGBA(127, 127, 127, 255));
 
     // Load textures
-    let player_texture = texture_creator
-        .load_texture(Path::new("assets/bunny.png"))
-        .unwrap();
+    // Background
     let mut background_texture = texture_creator
-        .load_texture(Path::new("assets/background.png"))
+        .load_texture(Path::new("assets/sky.png"))
         .unwrap();
-    background_texture.set_alpha_mod(220);
-    let carrot_texture = texture_creator
-        .load_texture(Path::new("assets/carrot.png"))
-        .unwrap();
+    background_texture.set_alpha_mod(100);
 
-    let mut player_x: f32 = window_width as f32 / 2.0;
-    let mut player_y: f32 = window_height as f32 / 2.0;
+    // Cursor
+    let mut cursor = Widget {
+        texture: texture_creator
+            .load_texture(Path::new("assets/arrow.png"))
+            .unwrap(),
+        position: Rect::from_center(Point::new(50, 100), 50, 50),
+    };
 
-    let mut d_player_x = 0.0;
-    let mut d_player_y = 0.0;
-    let mut player_direction = FACING_EAST;
+    // Music menu
+    let music_menu = Widget {
+        texture: texture_creator
+            .load_texture(Path::new("assets/music_note.png"))
+            .unwrap(),
+        position: Rect::from_center(Point::new(125, 100), 120, 108),
+    };
 
-    let mut source_rect = Rect::new(
-        0,
-        SPRITE_REST_OFFSET + (SPRITE_SIZE * player_direction) as i32,
-        SPRITE_SIZE,
-        SPRITE_SIZE,
-    );
-    let mut dest_rect = Rect::from_center(
-        Point::new(player_x as i32, player_y as i32),
-        SPRITE_SIZE * SPRITE_ZOOM,
-        SPRITE_SIZE * SPRITE_ZOOM,
-    );
-
-    // Generate a random carrot
-    let carrot_x: i32 = rand::thread_rng().gen_range(64,
-                                                     window_width as i32 - 64);
-    let carrot_y: i32 = rand::thread_rng().gen_range(64,
-                                                     window_height as i32 - 64);
-
-    let carrot_rect = Rect::from_center(Point::new(carrot_x, carrot_y), 64, 64);
+    // Video menu
+    let video_menu = Widget {
+        texture: texture_creator
+            .load_texture(Path::new("assets/tv.png"))
+            .unwrap(),
+        position: Rect::from_center(Point::new(140, 220), 128, 128),
+    };
 
     // Variables for calculating framerate
     let mut last_frame_end_time = Instant::now();
@@ -169,6 +140,13 @@ fn main() {
 
         for event in event_pump.poll_iter() {
             match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+
+                // Gamepad input
                 Event::JoyDeviceAdded { which, .. } => {
                     println!("Joystick {} connected.", which);
                     match joystick_subsystem.open(which) {
@@ -197,97 +175,99 @@ fn main() {
                     if axis_idx == 0 {
                         // LEFT pressed
                         if val == -32768 {
-                            source_rect.set_y(SPRITE_WEST_OFFSET);
-                            d_player_x = -MOVEMENT_SPEED;
-                            player_direction = FACING_WEST;
+                            println!("LEFT pressed.");
                         }
                         // RIGHT pressed
                         else if val == 32767 {
-                            source_rect.set_y(SPRITE_EAST_OFFSET);
-                            d_player_x = MOVEMENT_SPEED;
-                            player_direction = FACING_EAST;
+                            println!("RIGHT pressed.");
                         }
                         // LEFT and RIGHT released
                         else if val > -dead_zone && val < dead_zone {
-                            d_player_x = 0.0;
+                            println!("LEFT/RIGHT released.");
                         }
                     }
 
                     if axis_idx == 1 {
                         // UP pressed
                         if val == -32768 {
-                            source_rect.set_y(SPRITE_NORTH_OFFSET);
-                            d_player_y = -MOVEMENT_SPEED;
-                            player_direction = FACING_NORTH;
+                            println!("UP pressed.");
                         }
                         // DOWN pressed
                         else if val == 32767 {
-                            source_rect.set_y(SPRITE_SOUTH_OFFSET);
-                            d_player_y = MOVEMENT_SPEED;
-                            player_direction = FACING_SOUTH;
+                            println!("DOWN pressed.");
                         }
                         // UP and DOWN released
                         else if val > -dead_zone && val < dead_zone {
-                            d_player_y = 0.0;
+                            println!("UP/DOWN released.");
                         }
                     }
                 }
 
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
+                // Keyboard input
+                Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    repeat: false,
                     ..
-                } => break 'running,
+                } => {
+                    println!("LEFT KEY pressed.");
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    repeat: false,
+                    ..
+                } => {
+                    println!("RIGHT KEY pressed.");
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Up),
+                    repeat: false,
+                    ..
+                } => {
+                    println!("UP KEY pressed.");
+                    if cursor.position.y >= 25 {
+                        cursor.position.y -= 25;
+                    }
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Down),
+                    repeat: false,
+                    ..
+                } => {
+                    println!("DOWN KEY pressed.");
+                    if cursor.position.y < window_height as i32 - 75 {
+                        cursor.position.y += 25;
+                    }
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Return),
+                    repeat: false,
+                    ..
+                } => {
+                    println!("RETURN KEY pressed.");
+                }
+
                 _ => {}
             }
         }
 
-        // Move player
-        let dt_for_frame = 1.0 / TARGET_FRAME_RATE as f32;
-
-        let new_player_x = player_x + (dt_for_frame * d_player_x);
-
-        if new_player_x >= 32.0 && new_player_x <= window_width as f32 - 32.0 {
-            player_x = new_player_x;
-        } else {
-            d_player_x = 0.0;
-            source_rect.set_x(0);
-        }
-
-        let new_player_y = player_y + (dt_for_frame * d_player_y);
-        if new_player_y >= 42.0 && new_player_y <= window_height as f32 - 42.0 {
-            player_y = new_player_y;
-        } else {
-            d_player_y = 0.0;
-            source_rect.set_x(0);
-        }
-
-        dest_rect.center_on(Point::new(player_x as i32, player_y as i32));
-
-        // Walking / eating animation
-        let ticks = timer.ticks() as i32;
-
-        if !(d_player_x == 0.0) || !(d_player_y == 0.0) {
-            source_rect.set_x(SPRITE_SIZE as i32 *
-                ((ticks / ANIMATION_SPEED) % FRAMES_PER_ANIM));
-        } else {
-            // Stop animation
-            source_rect.set_x(0);
-            source_rect.set_y(SPRITE_REST_OFFSET +
-                (SPRITE_SIZE * player_direction) as i32);
-        }
-
         canvas.clear();
 
-        // Copy the background frame to the canvas
+        // Display background
         canvas.copy(&background_texture, None, None).unwrap();
 
-        // Copy the carrot to the canvas
-        canvas.copy(&carrot_texture, None, carrot_rect).unwrap();
-
-        // Copy the player frame to the canvas
+        // Display menu items
+        // Music menu
         canvas
-            .copy(&player_texture, Some(source_rect), Some(dest_rect))
+            .copy(&music_menu.texture, None, music_menu.position)
+            .unwrap();
+        // Video menu
+        canvas
+            .copy(&video_menu.texture, None, video_menu.position)
+            .unwrap();
+
+        // Display cursor
+        canvas
+            .copy(&cursor.texture, None, Some(cursor.position))
             .unwrap();
 
         canvas.present();
@@ -307,12 +287,9 @@ fn main() {
         let end_time = Instant::now();
         let time_elapsed = end_time - start_time;
         let time_elapsed: u64 =
-            time_elapsed.as_secs() *
-            BILLION +
-            time_elapsed.subsec_nanos() as u64;
+            time_elapsed.as_secs() * BILLION + time_elapsed.subsec_nanos() as u64;
         if time_elapsed < FRAME_TIME_NS {
-            thread::sleep(Duration::new(0,
-                                        (FRAME_TIME_NS - time_elapsed) as u32));
+            thread::sleep(Duration::new(0, (FRAME_TIME_NS - time_elapsed) as u32));
         }
     }
 }
