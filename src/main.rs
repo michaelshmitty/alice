@@ -3,13 +3,15 @@ extern crate rand;
 extern crate sdl2;
 
 use std::path::Path;
+use std::collections::HashMap;
 
 use sdl2::event::Event;
 use sdl2::image::{LoadTexture, INIT_PNG};
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Point;
 use sdl2::rect::Rect;
-use sdl2::render::Texture;
+use sdl2::render::{Canvas, Texture, TextureCreator};
+use sdl2::video::{Window, WindowContext};
 
 use std::thread;
 use std::time::{Duration, Instant};
@@ -24,6 +26,45 @@ const FRAME_TIME_NS: u64 = BILLION / TARGET_FRAME_RATE;
 struct Widget<'a> {
     texture: Texture<'a>,
     position: Rect,
+}
+
+struct UiContext<'a> {
+    canvas: Canvas<Window>,
+    texture_creator: TextureCreator<WindowContext>,
+    textures: HashMap<String, Texture<'a>>
+}
+
+impl<'a> UiContext<'a> {
+    fn new(window: Window) -> UiContext<'a> {
+        let canvas = window.into_canvas().accelerated().build().unwrap();
+        let texture_creator = canvas.texture_creator();
+        UiContext { canvas, texture_creator, textures: HashMap::new() }
+    }
+
+    fn draw_image(&self, name: &str, x: i32, y: i32) {     
+        if !self.textures.contains_key(name) {
+            let texture = self.texture_creator
+                .load_texture(Path::new(&format!("assets/{}.png", name))).unwrap();
+            self.textures.insert(name.to_owned(), texture);
+        }
+        let texture = &self.textures.get(name).unwrap();
+        let pos =  Rect::from_center(Point::new(x, y), 50, 50);
+        self.canvas.copy(&texture, None, pos).unwrap();
+    }
+
+    fn clear(&self) {
+        self.canvas.clear();
+    }
+
+    fn present(&self) {
+        self.canvas.present();
+    }
+
+}
+
+struct MenuItem {
+    name: String,
+    image: String,
 }
 
 fn main() {
@@ -93,41 +134,46 @@ fn main() {
     // Hide the cursor
     sdl_context.mouse().show_cursor(false);
 
-    let mut canvas = window.into_canvas().accelerated().build().unwrap();
-    let texture_creator = canvas.texture_creator();
 
-    canvas.set_draw_color(sdl2::pixels::Color::RGBA(127, 127, 127, 255));
+    // canvas.set_draw_color(sdl2::pixels::Color::RGBA(127, 127, 127, 255));
+
+    let ui_context = UiContext::new(window);
+
+    let main_menu = Vec::new();
+    main_menu.add(MenuItem { name: "music", image: "menu_music" });
+    main_menu.add(MenuItem { name: "video", image: "menu_video" });
+    let mut main_menu_index = 0;
 
     // Load textures
     // Background
-    let mut background_texture = texture_creator
-        .load_texture(Path::new("assets/sky.png"))
-        .unwrap();
-    background_texture.set_alpha_mod(100);
+    // let mut background_texture = texture_creator
+    //     .load_texture(Path::new("assets/sky.png"))
+    //     .unwrap();
+    // background_texture.set_alpha_mod(100);
 
     // Cursor
-    let mut cursor = Widget {
-        texture: texture_creator
-            .load_texture(Path::new("assets/arrow.png"))
-            .unwrap(),
-        position: Rect::from_center(Point::new(50, 100), 50, 50),
-    };
+    // let mut cursor = Widget {
+    //     texture: texture_creator
+    //         .load_texture(Path::new("assets/arrow.png"))
+    //         .unwrap(),
+    //     position: Rect::from_center(Point::new(50, 100), 50, 50),
+    // };
 
     // Music menu
-    let music_menu = Widget {
-        texture: texture_creator
-            .load_texture(Path::new("assets/music_note.png"))
-            .unwrap(),
-        position: Rect::from_center(Point::new(125, 100), 120, 108),
-    };
+    // let music_menu = Widget {
+    //     texture: texture_creator
+    //         .load_texture(Path::new("assets/music_note.png"))
+    //         .unwrap(),
+    //     position: Rect::from_center(Point::new(125, 100), 120, 108),
+    // };
 
     // Video menu
-    let video_menu = Widget {
-        texture: texture_creator
-            .load_texture(Path::new("assets/tv.png"))
-            .unwrap(),
-        position: Rect::from_center(Point::new(140, 220), 128, 128),
-    };
+    // let video_menu = Widget {
+    //     texture: texture_creator
+    //         .load_texture(Path::new("assets/tv.png"))
+    //         .unwrap(),
+    //     position: Rect::from_center(Point::new(140, 220), 128, 128),
+    // };
 
     // Variables for calculating framerate
     let mut last_frame_end_time = Instant::now();
@@ -224,9 +270,13 @@ fn main() {
                     ..
                 } => {
                     println!("UP KEY pressed.");
-                    if cursor.position.y >= 25 {
-                        cursor.position.y -= 25;
+                    main_menu_index -= 1;
+                    if (main_menu_index <= 0 ) {
+                        main_menu_index = main_menu.len() - 1;
                     }
+                    // if cursor.position.y >= 25 {
+                    //     cursor.position.y -= 25;
+                    // }
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Down),
@@ -234,9 +284,9 @@ fn main() {
                     ..
                 } => {
                     println!("DOWN KEY pressed.");
-                    if cursor.position.y < window_height as i32 - 75 {
-                        cursor.position.y += 25;
-                    }
+                    // if cursor.position.y < window_height as i32 - 75 {
+                    //     cursor.position.y += 25;
+                    // }
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Return),
@@ -250,31 +300,43 @@ fn main() {
             }
         }
 
-        canvas.clear();
+        ui_context.clear();
+        // canvas.clear();
 
-        // Display background
-        canvas.copy(&background_texture, None, None).unwrap();
+        //Display background
+        ui_context.draw_image("background", 0, 0);
+
+        for (index, menu_item) in &main_menu.iter().enumerate() {
+            let x = 50;
+            let y = 50 + index * MENU_ITEM_HEIGHT;
+            ui_context.draw_image(&menu_item.image, x, y);
+        }
+
+        ui_context.draw_image("menu_cursor", 20, 50 + main_menu_index * MENU_ITEM_HEIGHT);
+
+        //canvas.copy(&background_texture, None, None).unwrap();
 
         // Display menu items
         // Music menu
-        canvas
-            .copy(&music_menu.texture, None, music_menu.position)
-            .unwrap();
-        // Video menu
-        canvas
-            .copy(&video_menu.texture, None, video_menu.position)
-            .unwrap();
+        // canvas
+        //     .copy(&music_menu.texture, None, music_menu.position)
+        //     .unwrap();
+        // // Video menu
+        // canvas
+        //     .copy(&video_menu.texture, None, video_menu.position)
+        //     .unwrap();
 
         // Display cursor
-        canvas
-            .copy(&cursor.texture, None, Some(cursor.position))
-            .unwrap();
+        // canvas
+        //     .copy(&cursor.texture, None, Some(cursor.position))
+        //     .unwrap();
 
-        canvas.present();
+        // canvas.present();
+        ui_context.present();
 
         // Calculate framerate.
         // NOTE(m): Borrowed heavily from Casey Muratori's Handmade Hero
-        // implementation.
+         // implementation.
         let frame_end_time = Instant::now();
         if (frame_end_time - last_frame_end_time) >= Duration::new(1, 0) {
             last_frame_end_time = frame_end_time;
